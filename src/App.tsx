@@ -7,6 +7,7 @@ import { WelcomeView } from '@/components/WelcomeView'
 import { CartPanel } from '@/components/CartPanel'
 import { CheckoutView } from '@/components/CheckoutView'
 import { DemoConsole } from '@/components/DemoConsole'
+import { LogPanel } from '@/components/LogPanel'
 import { MenuView } from '@/components/MenuView'
 import { OrderView } from '@/components/OrderView'
 import { ServiceSheet } from '@/components/ServiceSheet'
@@ -17,8 +18,9 @@ import { useElderlyMode } from '@/hooks/useElderlyMode'
 import { initialViewFromHash, useViewRoute } from '@/hooks/useViewRoute'
 import { orderReducer, initialState } from '@/state/orderReducer'
 import { products } from '@/data/menu'
+import { logger } from '@/lib/logger'
 import { money } from '@/lib/utils'
-import type { AppState, ViewName } from '@/types'
+import type { AppAction, AppState, ViewName } from '@/types'
 
 function createInitialState(): AppState {
   const search = new URLSearchParams(window.location.search)
@@ -46,19 +48,56 @@ function createInitialState(): AppState {
   return initialState
 }
 
+/**
+ * dispatch 中间件：在 action 分发到 reducer 的同时，记录关键用户行为日志。
+ * 纯日志采集，不改变 action 内容或 reducer 逻辑。
+ */
+const actionLogMap: Record<AppAction['type'], { category: string; getMessage: (action: AppAction) => string; getData?: (action: AppAction) => Record<string, unknown> }> = {
+  BIND_TABLE: { category: 'table', getMessage: (a) => `绑定桌台: ${(a as Extract<AppAction, { type: 'BIND_TABLE' }>).table}` },
+  SET_VIEW: { category: 'nav', getMessage: (a) => `切换视图: ${(a as Extract<AppAction, { type: 'SET_VIEW' }>).view}` },
+  ADD_CART: {
+    category: 'cart',
+    getMessage: (a) => `加购物车: ${(a as Extract<AppAction, { type: 'ADD_CART' }>).item.name}`,
+    getData: (a) => {
+      const item = (a as Extract<AppAction, { type: 'ADD_CART' }>).item
+      return { productId: item.productId, orderedBy: item.orderedBy, quantity: item.quantity, price: item.price }
+    },
+  },
+  CHANGE_QTY: { category: 'cart', getMessage: (a) => { const act = a as Extract<AppAction, { type: 'CHANGE_QTY' }>; return `修改数量: ${act.uid} (${act.delta > 0 ? '+' : ''}${act.delta})` } },
+  SUBMIT_ORDER: { category: 'order', getMessage: () => '提交订单' },
+  SET_STAGE: { category: 'order', getMessage: (a) => `切换履约阶段: ${(a as Extract<AppAction, { type: 'SET_STAGE' }>).stage}` },
+  TOGGLE_SOLD_OUT: { category: 'menu', getMessage: (a) => `切换售罄: ${(a as Extract<AppAction, { type: 'TOGGLE_SOLD_OUT' }>).productId}` },
+  CALL_SERVICE: { category: 'service', getMessage: (a) => `呼叫服务: ${(a as Extract<AppAction, { type: 'CALL_SERVICE' }>).service}` },
+  RESPOND_SERVICES: { category: 'service', getMessage: () => '响应所有服务呼叫' },
+  REQUEST_CANCEL: { category: 'order', getMessage: (a) => `申请退菜: ${(a as Extract<AppAction, { type: 'REQUEST_CANCEL' }>).uid}` },
+  PAY: { category: 'checkout', getMessage: () => '完成支付' },
+  RESET: { category: 'system', getMessage: () => '重置演示' },
+  SET_MESSAGE: { category: 'system', getMessage: () => '设置消息' },
+}
+
 export default function App() {
   const { t, i18n } = useTranslation()
-  const [state, dispatch] = useReducer(orderReducer, undefined, createInitialState)
+  const [state, rawDispatch] = useReducer(orderReducer, undefined, createInitialState)
   const { enabled: elderly, toggle: toggleElderly } = useElderlyMode()
   const [serviceOpen, setServiceOpen] = useState(false)
   const [consoleOpen, setConsoleOpen] = useState(false)
   const [cartOpen, setCartOpen] = useState(false)
+  const [logOpen, setLogOpen] = useState(false)
   const cartTotal = state.cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
   const waitingServices = state.services.filter((service) => service.status === 'waiting').length
 
+  // 带日志采集的 dispatch
+  const dispatch = useCallback((action: AppAction) => {
+    const config = actionLogMap[action.type]
+    if (config) {
+      logger.info(config.category, config.getMessage(action), config.getData?.(action))
+    }
+    rawDispatch(action)
+  }, [])
+
   // 视图 ↔ URL hash 双向同步；未绑定桌台时只有 home 可达，其余地址回落到 home
   const canView = useCallback((view: ViewName) => view === 'home' || !!state.table, [state.table])
-  const navigate = useCallback((view: ViewName) => dispatch({ type: 'SET_VIEW', view }), [])
+  const navigate = useCallback((view: ViewName) => dispatch({ type: 'SET_VIEW', view }), [dispatch])
   useViewRoute(state.view, { onNavigate: navigate, canView })
 
   useEffect(() => {
@@ -73,25 +112,39 @@ export default function App() {
     }
   }, [i18n.language, t])
 
-  const changeView = (view: ViewName) => dispatch({ type: 'SET_VIEW', view })
-  const submitOrder = () => {
+  // 记录语言切换日志
+  const toggleLanguage = useCallback(() => {
+    const next = i18n.language === 'zh' ? 'en' : 'zh'
+    logger.info('system', `切换语言: ${i18n.language} → ${next}`)
+    i18n.changeLanguage(next)
+  }, [i18n])
+
+  const changeView = useCallback((view: ViewName) => dispatch({ type: 'SET_VIEW', view }), [dispatch])
+  const submitOrder = useCallback(() => {
     dispatch({ type: 'SUBMIT_ORDER' })
     setCartOpen(false)
-  }
-  const toggleLanguage = () => {
-    i18n.changeLanguage(i18n.language === 'zh' ? 'en' : 'zh')
-  }
-  const handleToggleElderly = () => {
+  }, [dispatch])
+  const handleToggleElderly = useCallback(() => {
     toggleElderly()
     dispatch({ type: 'SET_MESSAGE', message: elderly ? '已切换为常规模式' : '已切换为老人模式' })
-  }
+  }, [dispatch, elderly, toggleElderly])
 
   if (state.view === 'home' || !state.table) {
-    return <HomeView onBind={(table) => dispatch({ type: 'BIND_TABLE', table })} />
+    return (
+      <>
+        <HomeView onBind={(table) => dispatch({ type: 'BIND_TABLE', table })} />
+        <LogPanel open={logOpen} onOpenChange={setLogOpen} />
+      </>
+    )
   }
 
   if (state.view === 'welcome') {
-    return <WelcomeView table={state.table!} onEnter={() => dispatch({ type: 'SET_VIEW', view: 'menu' })} />
+    return (
+      <>
+        <WelcomeView table={state.table!} onEnter={() => dispatch({ type: 'SET_VIEW', view: 'menu' })} />
+        <LogPanel open={logOpen} onOpenChange={setLogOpen} />
+      </>
+    )
   }
 
   return (
@@ -107,6 +160,7 @@ export default function App() {
         onView={changeView}
         onService={() => setServiceOpen(true)}
         onConsole={() => setConsoleOpen(true)}
+        onLogPanel={() => setLogOpen(true)}
       />
 
       {state.view === 'menu' && (
@@ -152,7 +206,10 @@ export default function App() {
         onSoldOut={(productId) => dispatch({ type: 'TOGGLE_SOLD_OUT', productId })}
         onRespond={() => dispatch({ type: 'RESPOND_SERVICES' })}
         onReset={() => { dispatch({ type: 'RESET' }); setConsoleOpen(false) }}
+        onViewLog={() => { setConsoleOpen(false); setLogOpen(true) }}
       />
+
+      <LogPanel open={logOpen} onOpenChange={setLogOpen} />
 
       <Dialog open={cartOpen} onOpenChange={setCartOpen}>
         <DialogContent title={t('cart.dialog_title')}>
