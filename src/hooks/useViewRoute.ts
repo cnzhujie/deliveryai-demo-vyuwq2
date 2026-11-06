@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { logger } from '@/lib/logger'
 import type { ViewName } from '@/types'
 
 // 主流程视图与 URL hash 的一一映射：home → welcome → menu → order → checkout。
@@ -49,9 +50,13 @@ export function useViewRoute(view: ViewName, { onNavigate, canView }: UseViewRou
       const requested = hashToView(window.location.hash)
       const target = requested && (!canView || canView(requested)) ? requested : 'home'
       if (target !== requested) {
+        logger.warn('viewRoute', '地址纠正', { requested: window.location.hash, corrected: viewToHash(target) })
         window.history.replaceState(null, '', viewToHash(target)) // 纠正非法/不可达地址
       }
-      if (target !== view) onNavigate(target)
+      if (target !== view) {
+        logger.info('viewRoute', 'hashchange 导航', { from: view, to: target })
+        onNavigate(target)
+      }
     }
     window.addEventListener('hashchange', handler)
     return () => window.removeEventListener('hashchange', handler)

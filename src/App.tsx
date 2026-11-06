@@ -18,6 +18,7 @@ import { initialViewFromHash, useViewRoute } from '@/hooks/useViewRoute'
 import { orderReducer, initialState } from '@/state/orderReducer'
 import { products } from '@/data/menu'
 import { money } from '@/lib/utils'
+import { logger } from '@/lib/logger'
 import type { AppState, ViewName } from '@/types'
 
 function createInitialState(): AppState {
@@ -28,6 +29,7 @@ function createInitialState(): AppState {
   if (search.get('preview') === 'menu') {
     const product = products[2]
     const spec = [i18next.t('menu.option.full'), i18next.t('menu.option.original')].join(' · ')
+    logger.info('app', '初始化（预览模式）', { view: 'menu', table: 'A08' })
     return {
       ...initialState,
       table: 'A08',
@@ -40,9 +42,11 @@ function createInitialState(): AppState {
   // 深链接：直接以 #/welcome 等地址打开时，先绑定示例桌台再进入对应视图；
   // home 无需桌台，其余流程视图（welcome/menu/order/checkout）需要桌台上下文。
   if (requestedView && requestedView !== 'home') {
+    logger.info('app', '初始化（深链接）', { view: requestedView, table: 'A08' })
     return { ...initialState, table: 'A08', view: requestedView }
   }
 
+  logger.info('app', '初始化', { view: 'home' })
   return initialState
 }
 
@@ -70,18 +74,26 @@ export default function App() {
       localStorage.setItem('i18nextLng', i18n.language)
     } catch {
       // localStorage 不可用时降级为内存态，不报错不阻塞
+      logger.warn('app', 'localStorage 不可用，语言设置降级为内存态', { language: i18n.language })
     }
   }, [i18n.language, t])
 
-  const changeView = (view: ViewName) => dispatch({ type: 'SET_VIEW', view })
+  const changeView = (view: ViewName) => {
+    logger.info('app', '视图切换', { from: state.view, to: view })
+    dispatch({ type: 'SET_VIEW', view })
+  }
   const submitOrder = () => {
     dispatch({ type: 'SUBMIT_ORDER' })
     setCartOpen(false)
   }
   const toggleLanguage = () => {
-    i18n.changeLanguage(i18n.language === 'zh' ? 'en' : 'zh')
+    const next = i18n.language === 'zh' ? 'en' : 'zh'
+    logger.info('app', '语言切换', { from: i18n.language, to: next })
+    i18n.changeLanguage(next)
   }
   const handleToggleElderly = () => {
+    const next = !elderly
+    logger.info('app', '老人模式切换', { enabled: next })
     toggleElderly()
     dispatch({ type: 'SET_MESSAGE', message: elderly ? '已切换为常规模式' : '已切换为老人模式' })
   }
