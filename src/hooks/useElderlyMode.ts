@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { logger } from '@/lib/logger'
 
 const STORAGE_KEY = 'elderly-mode'
 
@@ -25,6 +26,7 @@ export function useElderlyMode() {
         localStorage.setItem(STORAGE_KEY, next ? 'true' : 'false')
       } catch {
         // localStorage 不可用时降级为内存态，不报错
+        logger.warn('elderlyMode', 'localStorage 不可用，老人模式降级为内存态', { enabled: next })
       }
       return next
     })
@@ -40,6 +42,7 @@ function getInitialElderlyMode(): boolean {
     if (stored === 'false') return false
   } catch {
     // localStorage 不可用时降级为默认关闭
+    logger.warn('elderlyMode', 'localStorage 不可用，老人模式初始值降级为默认关闭')
   }
   return false
 }

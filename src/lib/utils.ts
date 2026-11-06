@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
+import { logger } from '@/lib/logger'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -18,5 +19,6 @@ export function uid(): string {
   } catch {
     // 忽略：不可用时走下方降级分支
   }
+  logger.warn('utils', 'crypto.randomUUID 不可用，uid 降级为 Math.random 方案')
   return `id-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
 }
