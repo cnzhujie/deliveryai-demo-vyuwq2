@@ -1,4 +1,4 @@
-import { Accessibility, Crown, Languages, LayoutDashboard, MapPin, PhoneCall, ReceiptText, Search, UserRound } from 'lucide-react'
+import { Accessibility, Crown, Languages, LayoutDashboard, MapPin, PhoneCall, ReceiptText, ScrollText, Search, UserRound } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog'
@@ -16,9 +16,10 @@ interface TopBarProps {
   onView: (view: ViewName) => void
   onService: () => void
   onConsole: () => void
+  onLogPanel: () => void
 }
 
-export function TopBar({ table, view, serviceCount, language, elderly, onToggleLanguage, onToggleElderly, onView, onService, onConsole }: TopBarProps) {
+export function TopBar({ table, view, serviceCount, language, elderly, onToggleLanguage, onToggleElderly, onView, onService, onConsole, onLogPanel }: TopBarProps) {
   const { t } = useTranslation()
   const areaKey = tableAreas[table]
   const tableLabel = areaKey ? `${table} · ${t(areaKey)}` : table
@@ -56,6 +57,9 @@ export function TopBar({ table, view, serviceCount, language, elderly, onToggleL
             </DialogContent>
           </Dialog>
           <Button variant="outline" size="icon" onClick={onConsole} aria-label={t('common.aria_console')}><LayoutDashboard size={18} /></Button>
+          <Button variant="outline" size="icon" onClick={onLogPanel} aria-label={t('common.aria_log')}>
+            <ScrollText size={18} />
+          </Button>
           <Button variant="outline" size="icon" onClick={onToggleElderly} aria-label={elderly ? '切换至常规模式' : '切换至老人模式'}>
             <Accessibility size={18} className={elderly ? 'text-chili-500' : ''} />
           </Button>

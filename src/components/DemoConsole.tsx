@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { CheckCircle2, ChefHat, RotateCcw, Store, ToggleLeft, UtensilsCrossed, XCircle } from 'lucide-react'
+import { CheckCircle2, ChefHat, RotateCcw, ScrollText, Store, ToggleLeft, UtensilsCrossed, XCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { products, tableAreas } from '@/data/menu'
@@ -24,9 +24,10 @@ interface DemoConsoleProps {
   onSoldOut: (id: string) => void
   onRespond: () => void
   onReset: () => void
+  onViewLog: () => void
 }
 
-export function DemoConsole({ open, table, stage, soldOut, services, onOpenChange, onStage, onSoldOut, onRespond, onReset }: DemoConsoleProps) {
+export function DemoConsole({ open, table, stage, soldOut, services, onOpenChange, onStage, onSoldOut, onRespond, onReset, onViewLog }: DemoConsoleProps) {
   const { t } = useTranslation()
   const waiting = services.filter((service) => service.status === 'waiting').length
   const areaKey = tableAreas[table]
@@ -50,7 +51,13 @@ export function DemoConsole({ open, table, stage, soldOut, services, onOpenChang
           <div className="flex items-center justify-between"><h3 className="font-bold text-charcoal-900">{t('console.soldout_title')}</h3><span className="flex items-center gap-1 text-xs text-charcoal-500"><ToggleLeft size={16} />{t('console.soldout_hint')}</span></div>
           <div className="scrollbar-none mt-4 flex gap-2 overflow-x-auto pb-1">{products.map((product) => { const unavailable = soldOut.includes(product.id); return <button key={product.id} onClick={() => onSoldOut(product.id)} className={`flex shrink-0 items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold ${unavailable ? 'border-chili-500/30 bg-chili-50 text-chili-600' : 'border-charcoal-900/5 bg-rice-50 text-charcoal-500'}`}>{unavailable ? <XCircle size={15} /> : <CheckCircle2 size={15} />}{t(product.name)}</button> })}</div>
         </section>
-        <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-between"><Button variant="outline" onClick={onReset}><RotateCcw size={17} />{t('console.reset')}</Button><Button onClick={() => onOpenChange(false)}>{t('console.done')}</Button></div>
+        <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
+          <div className="flex gap-3">
+            <Button variant="outline" onClick={onReset}><RotateCcw size={17} />{t('console.reset')}</Button>
+            <Button variant="outline" onClick={onViewLog}><ScrollText size={17} />{t('console.view_log')}</Button>
+          </div>
+          <Button onClick={() => onOpenChange(false)}>{t('console.done')}</Button>
+        </div>
       </DialogContent>
     </Dialog>
   )
