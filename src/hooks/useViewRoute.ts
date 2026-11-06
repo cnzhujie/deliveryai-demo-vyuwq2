@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import type { ViewName } from '@/types'
+import { logger } from '@/lib/logger'
 
 // 主流程视图与 URL hash 的一一映射：home → welcome → menu → order → checkout。
 // 用 hash 路由（而非 History 路由）以兼容 Vite base './' 与 GitHub Pages 子路径部署：
@@ -37,8 +38,10 @@ export function useViewRoute(view: ViewName, { onNavigate, canView }: UseViewRou
     const target = viewToHash(view)
     if (window.location.hash === target) return
     if (hashToView(window.location.hash)) {
+      logger.info('router', `hash 导航: ${window.location.hash} → ${target}`)
       window.location.hash = target // 正常跳转：写入 hash 以生成一条历史记录，支持前进/后退
     } else {
+      logger.info('router', `地址初始化: → ${target}`)
       window.history.replaceState(null, '', target) // 首次加载：规范化地址，不额外新增历史记录
     }
   }, [view])
@@ -49,9 +52,13 @@ export function useViewRoute(view: ViewName, { onNavigate, canView }: UseViewRou
       const requested = hashToView(window.location.hash)
       const target = requested && (!canView || canView(requested)) ? requested : 'home'
       if (target !== requested) {
+        logger.warn('router', `非法/不可达地址纠正`, { requested: requested ?? '(空)', target })
         window.history.replaceState(null, '', viewToHash(target)) // 纠正非法/不可达地址
       }
-      if (target !== view) onNavigate(target)
+      if (target !== view) {
+        logger.info('router', `hashchange 导航: ${view} → ${target}`)
+        onNavigate(target)
+      }
     }
     window.addEventListener('hashchange', handler)
     return () => window.removeEventListener('hashchange', handler)
